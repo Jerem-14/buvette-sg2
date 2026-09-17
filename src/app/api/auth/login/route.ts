@@ -18,13 +18,20 @@ export async function POST(request: Request) {
     await createSession(user);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Login failed:', error instanceof Error ? error.message : 'Unknown error');
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Login failed:', message);
+    const configurationError = message.startsWith('Configurez les deux variables Redis');
+    const uninitializedRegister = message.startsWith('Base non initialisée');
     return NextResponse.json(
       {
         error:
-          error instanceof Error && error.message.startsWith('Trop de tentatives')
-            ? error.message
-            : 'Connexion impossible. Vérifiez la configuration et réessayez.',
+          message.startsWith('Trop de tentatives')
+            ? message
+            : configurationError
+              ? 'Redis Upstash n’est pas disponible dans ce déploiement. Vérifiez les variables Production puis redéployez.'
+              : uninitializedRegister
+                ? 'Le registre Redis n’est pas initialisé. Exécutez npm run db:seed avec les variables Production.'
+                : 'Connexion impossible. Vérifiez la configuration et réessayez.',
       },
       { status: 400 },
     );
