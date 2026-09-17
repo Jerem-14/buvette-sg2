@@ -75,9 +75,13 @@ export async function authenticate(email: string, password: string): Promise<Use
   return user && valid ? user : null;
 }
 export function checkOrigin(request: Request): boolean {
-  const expected =
-    process.env.APP_URL ||
-    (process.env.NODE_ENV !== 'production' ? new URL(request.url).origin : '');
-  if (!expected) return false;
-  return request.headers.get('origin') === new URL(expected).origin;
+  const origin = request.headers.get('origin');
+  if (!origin) return false;
+
+  // Vercel resolves request.url to the public deployment or custom-domain URL.
+  // This permits the active origin for both Production and Preview deployments.
+  const allowedOrigins = new Set([new URL(request.url).origin]);
+  if (process.env.APP_URL) allowedOrigins.add(new URL(process.env.APP_URL).origin);
+  if (process.env.VERCEL_URL) allowedOrigins.add(`https://${process.env.VERCEL_URL}`);
+  return allowedOrigins.has(origin);
 }
