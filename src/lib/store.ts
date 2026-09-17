@@ -57,9 +57,18 @@ async function readLocal(): Promise<Register> {
 }
 export async function readRegister(): Promise<Register> {
   if (isDemo()) return serial(readLocal);
-  const raw = await redis().get<string>(`${prefix()}:registre`);
+  let raw: string | null;
+  try {
+    raw = await redis().get<string>(`${prefix()}:registre`);
+  } catch {
+    throw new BusinessError('Redis Upstash est indisponible.');
+  }
   if (!raw) throw new Error('Base non initialisée. Exécutez npm run db:seed.');
-  return decodeRegister(raw);
+  try {
+    return decodeRegister(raw);
+  } catch {
+    throw new BusinessError('Le registre Redis est illisible ou utilise une version inconnue.');
+  }
 }
 // A single Redis key makes the register + audit commit indivisible.
 export const CAS_SCRIPT = `local current = redis.call('GET', KEYS[1]); if not current then return -1 end; if cjson.decode(current).revision ~= tonumber(ARGV[1]) then return 0 end; redis.call('SET', KEYS[1], ARGV[2]); return 1`;

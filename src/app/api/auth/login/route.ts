@@ -22,6 +22,8 @@ export async function POST(request: Request) {
     console.error('Login failed:', message);
     const configurationError = message.startsWith('Configurez les deux variables Redis');
     const uninitializedRegister = message.startsWith('Base non initialisée');
+    const redisUnavailable = message.startsWith('Redis Upstash est indisponible');
+    const unreadableRegister = message.startsWith('Le registre Redis est illisible');
     return NextResponse.json(
       {
         error:
@@ -31,6 +33,10 @@ export async function POST(request: Request) {
               ? 'Redis Upstash n’est pas disponible dans ce déploiement. Vérifiez les variables Production puis redéployez.'
               : uninitializedRegister
                 ? 'Le registre Redis n’est pas initialisé. Exécutez npm run db:seed avec les variables Production.'
+                : redisUnavailable
+                  ? 'Redis Upstash ne répond pas depuis ce déploiement. Vérifiez l’URL et le token Production.'
+                  : unreadableRegister
+                    ? 'Le registre Redis est illisible. Réinitialisez uniquement une base de test, ou contactez le responsable des données.'
                 : 'Connexion impossible. Vérifiez la configuration et réessayez.',
       },
       { status: 400 },
