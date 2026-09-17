@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     await createSession(user);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Login failed', error instanceof Error ? error.name : 'Error');
+    console.error('Login failed:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
       {
         error:
