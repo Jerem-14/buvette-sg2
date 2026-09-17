@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
-config({ path: '.env.local' });
-config();
+const envFile = process.env.DOTENV_CONFIG_PATH || '.env.local';
+config({ path: envFile, quiet: true });
+if (!process.env.DOTENV_CONFIG_PATH) config({ path: '.env', quiet: true });
 import { createRegister } from '../src/lib/demo';
 import { decodeRegister, prefix, redis } from '../src/lib/store';
 import { hashPassword } from '../src/lib/password';
