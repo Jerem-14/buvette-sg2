@@ -86,6 +86,7 @@ const auditNames: Record<string, string> = {
   'event.save': 'Soirée enregistrée',
   'event.delete': 'Soirée annulée',
   'event.issue': 'Sortie enregistrée',
+  'event.issueMany': 'Sorties enregistrées',
   'event.removeLine': 'Sortie annulée',
   'event.close': 'Clôture / retours enregistrés',
 };

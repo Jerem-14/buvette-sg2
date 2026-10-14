@@ -56,6 +56,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     productId: id,
     quantityOut: positive,
   }),
+  z.object({
+    type: z.literal('event.issueMany'),
+    eventId: id,
+    items: z
+      .array(z.object({ productId: id, quantityOut: positive }))
+      .min(1)
+      .max(100),
+  }),
   z.object({ type: z.literal('event.removeLine'), eventId: id, id }),
   z.object({
     type: z.literal('event.close'),
@@ -446,6 +454,7 @@ export function applyCommand(original: Register, input: unknown, actor: User): R
       break;
     }
     case 'event.issue':
+    case 'event.issueMany':
     case 'event.removeLine':
     case 'event.close': {
       const event: BuvetteEvent = need(state.events, command.eventId);
@@ -469,13 +478,27 @@ export function applyCommand(original: Register, input: unknown, actor: User): R
         event.status = 'CLOSED';
         event.closeSequence ??= state.nextSequence++;
       } else {
-        if (event.status !== 'OPEN' && command.type === 'event.issue' && !command.id)
+        if (
+          event.status !== 'OPEN' &&
+          (command.type === 'event.issueMany' || (command.type === 'event.issue' && !command.id))
+        )
           throw new BusinessError(
             'Cette soirée est clôturée. Corrigez ses sorties existantes ou annulez-la.',
           );
         if (command.type === 'event.removeLine') {
           const line = need(event.lines, command.id);
           event.lines.splice(event.lines.indexOf(line), 1);
+        } else if (command.type === 'event.issueMany') {
+          for (const item of command.items) {
+            need(state.products, item.productId);
+            event.lines.push({
+              ...meta(),
+              productId: item.productId,
+              quantityOut: item.quantityOut,
+              quantityReturned: 0,
+              sequence: state.nextSequence++,
+            });
+          }
         } else {
           need(state.products, command.productId);
           if (command.id)

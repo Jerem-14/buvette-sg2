@@ -168,6 +168,25 @@ test('aucune sortie ne peut rendre le stock négatif, même sur plusieurs soiré
   assert.throws(() => f.issue(b, 1), /Stock insuffisant/);
   assert.deepEqual(f.state(), prior);
 });
+test('plusieurs sorties en une saisie, tout ou rien', () => {
+  const f = fixture();
+  f.entry(3000);
+  const e = f.event();
+  const issueMany = (quantities: number[]) =>
+    f.run({
+      type: 'event.issueMany',
+      eventId: e,
+      items: quantities.map((quantityOut) => ({ productId: f.productId, quantityOut })),
+    });
+  issueMany([1000, 1000]);
+  assert.equal(f.state().events.at(-1)!.lines.length, 2);
+  assert.equal(project(f.state()).stock[f.productId].quantity, 1000);
+  const before = structuredClone(f.state());
+  assert.throws(() => issueMany([500, 1000]), /Stock insuffisant/);
+  assert.deepEqual(f.state(), before);
+  f.close(e);
+  assert.throws(() => issueMany([500]), /clôturée/);
+});
 test('un retour supérieur à la sortie est refusé sans mutation', () => {
   const f = fixture();
   f.entry(2000);

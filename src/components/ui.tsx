@@ -133,6 +133,17 @@ export const dateLabel = (date: string) =>
     year: 'numeric',
     timeZone: 'Europe/Paris',
   }).format(new Date(date.length === 10 ? `${date}T12:00:00Z` : date));
+export const weekdayDayMonth = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+  }).formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('weekday')} ${part('day')}/${part('month')}`;
+};
 export const today = () =>
   new Intl.DateTimeFormat('fr-CA', {
     timeZone: 'Europe/Paris',

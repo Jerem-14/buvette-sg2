@@ -4,7 +4,7 @@ import { Plus, Trash2, ArrowRight, Check } from 'lucide-react';
 import type { Command } from '@/lib/domain';
 import type { Snapshot } from '@/lib/types';
 import { cents, decimal, quantity, units } from '@/lib/money';
-import { today } from './ui';
+import { today, weekdayDayMonth } from './ui';
 export interface DialogState {
   kind: string;
   id?: string;
@@ -45,6 +45,14 @@ export function EditForm({
         ),
       },
     ],
+  );
+  const issuable = data.products.filter(
+    (p) => (data.projection.stock[p.id]?.quantity ?? 0) > 0 || p.id === line?.productId,
+  );
+  const [issues, setIssues] = useState(
+    line
+      ? [{ productId: line.productId, quantity: decimal(line.quantityOut, 3) }]
+      : [{ productId: issuable[0]?.id ?? '', quantity: '1' }],
   );
   const [returns, setReturns] = useState<Record<string, string>>(
     Object.fromEntries(event?.lines.map((l) => [l.id, decimal(l.quantityReturned, 3)]) ?? []),
@@ -97,13 +105,22 @@ export function EditForm({
           command = { type: 'event.save', id, name: v('name'), date: v('date'), note: v('note') };
           break;
         case 'issue':
-          command = {
-            type: 'event.issue',
-            id,
-            eventId: eventId!,
-            productId: v('productId'),
-            quantityOut: units(v('quantity')),
-          };
+          command = id
+            ? {
+                type: 'event.issue',
+                id,
+                eventId: eventId!,
+                productId: issues[0].productId,
+                quantityOut: units(issues[0].quantity),
+              }
+            : {
+                type: 'event.issueMany',
+                eventId: eventId!,
+                items: issues.map((i) => ({
+                  productId: i.productId,
+                  quantityOut: units(i.quantity),
+                })),
+              };
           break;
         case 'close':
           command = {
@@ -376,8 +393,7 @@ export function EditForm({
               name="name"
               required
               maxLength={120}
-              defaultValue={event?.name}
-              placeholder="Ex. Après-match du samedi"
+              defaultValue={`Entraînement ${weekdayDayMonth()}`}
             />
           </label>
           {dateField(event?.date)}
@@ -386,34 +402,84 @@ export function EditForm({
       )}
       {kind === 'issue' && (
         <>
-          <label>
-            Produit
-            <select name="productId" required defaultValue={line?.productId ?? ''}>
-              <option value="" disabled>
-                Choisir un produit
-              </option>
-              {data.products
-                .filter(
-                  (p) =>
-                    (data.projection.stock[p.id]?.quantity ?? 0) > 0 || p.id === line?.productId,
-                )
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} · {quantity(data.projection.stock[p.id]?.quantity ?? 0)} disponible(s)
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label>
-            Quantité à sortir
-            <input
-              name="quantity"
-              inputMode="decimal"
-              required
-              placeholder="1"
-              defaultValue={line ? decimal(line.quantityOut, 3) : ''}
-            />
-          </label>
+          <div className="entry-lines">
+            {issues.map((issue, i) => (
+              <div className="entry-line" key={i}>
+                <label>
+                  Produit
+                  <select
+                    aria-label={`Produit ${i + 1}`}
+                    value={issue.productId}
+                    required
+                    onChange={(e) =>
+                      setIssues(
+                        issues.map((row, index) =>
+                          index === i ? { ...row, productId: e.target.value } : row,
+                        ),
+                      )
+                    }
+                  >
+                    <option value="" disabled>
+                      Choisir un produit
+                    </option>
+                    {issuable.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} · {quantity(data.projection.stock[p.id]?.quantity ?? 0)}{' '}
+                        disponible(s)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Quantité à sortir
+                  <input
+                    aria-label={`Quantité ${i + 1}`}
+                    inputMode="decimal"
+                    required
+                    value={issue.quantity}
+                    onChange={(e) =>
+                      setIssues(
+                        issues.map((row, index) =>
+                          index === i ? { ...row, quantity: e.target.value } : row,
+                        ),
+                      )
+                    }
+                  />
+                </label>
+                {issues.length > 1 && (
+                  <button
+                    type="button"
+                    className="text-button danger"
+                    onClick={() => setIssues(issues.filter((_, index) => index !== i))}
+                  >
+                    <Trash2 size={14} />
+                    Retirer ce produit
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {!id && (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() =>
+                setIssues([
+                  ...issues,
+                  {
+                    productId:
+                      issuable.find((p) => !issues.some((row) => row.productId === p.id))?.id ??
+                      issuable[0]?.id ??
+                      '',
+                    quantity: '1',
+                  },
+                ])
+              }
+            >
+              <Plus size={16} />
+              Ajouter un produit
+            </button>
+          )}
           <p className="info-box">
             Le stock disponible diminue dès l’enregistrement. Vous indiquerez les retours à la
             clôture. Les quantités acceptent jusqu’à 3 décimales.
