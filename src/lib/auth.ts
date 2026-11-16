@@ -81,7 +81,14 @@ export function checkOrigin(request: Request): boolean {
   // Vercel resolves request.url to the public deployment or custom-domain URL.
   // This permits the active origin for both Production and Preview deployments.
   const allowedOrigins = new Set([new URL(request.url).origin]);
-  if (process.env.APP_URL) allowedOrigins.add(new URL(process.env.APP_URL).origin);
+  if (process.env.APP_URL) {
+    try {
+      allowedOrigins.add(new URL(process.env.APP_URL).origin);
+    } catch {
+      // The active deployment URL remains a safe CSRF origin when APP_URL is malformed.
+      console.error('APP_URL is not a valid URL.');
+    }
+  }
   if (process.env.VERCEL_URL) allowedOrigins.add(`https://${process.env.VERCEL_URL}`);
   return allowedOrigins.has(origin);
 }
