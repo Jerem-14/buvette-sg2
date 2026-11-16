@@ -47,6 +47,15 @@ export const commandSchema = z.discriminatedUnion('type', [
     items: z.array(item).min(1).max(100),
   }),
   z.object({ type: z.literal('entry.delete'), id }),
+  z.object({
+    type: z.literal('stock.issue'),
+    id: id.optional(),
+    date,
+    note,
+    productId: id,
+    quantityOut: positive,
+  }),
+  z.object({ type: z.literal('stock.issue.delete'), id }),
   z.object({ type: z.literal('event.save'), id: id.optional(), name: text, date, note }),
   z.object({ type: z.literal('event.delete'), id }),
   z.object({
@@ -85,6 +94,7 @@ export function emptyRegister(): Register {
     contributions: [],
     products: [],
     entries: [],
+    stockIssues: [],
     events: [],
     audit: [],
   };
@@ -143,6 +153,39 @@ export function project(state: Register): Projection {
             note: entry.note,
           });
         }
+      },
+    });
+  for (const issue of state.stockIssues)
+    operations.push({
+      seq: issue.sequence,
+      run: () => {
+        const product = need(state.products, issue.productId);
+        let remaining = issue.quantityOut;
+        const allocations: Allocation[] = [];
+        for (const lot of lots
+          .filter((l) => l.productId === product.id && l.quantity > 0)
+          .sort((a, b) => a.sequence - b.sequence)) {
+          if (!remaining) break;
+          const take = Math.min(remaining, lot.quantity);
+          allocations.push(split(lot, take));
+          remaining -= take;
+        }
+        if (remaining)
+          throw new BusinessError(
+            `Stock insuffisant pour « ${product.name} » lors d’une sortie manuelle. Corrigez d’abord les quantités disponibles.`,
+          );
+        const valueCents = sum(allocations.map((a) => a.valueCents));
+        consumedCents = sum([consumedCents, valueCents]);
+        movements.push({
+          id: issue.id,
+          date: issue.date,
+          type: 'manualIssue',
+          label: product.name,
+          productId: product.id,
+          quantity: issue.quantityOut,
+          amountCents: valueCents,
+          note: issue.note || 'Sortie manuelle de stock',
+        });
       },
     });
   for (const event of state.events) {
@@ -433,6 +476,23 @@ export function applyCommand(original: Register, input: unknown, actor: User): R
       productIds = need(state.entries, command.id).items.map((i) => i.productId);
       remove(state.entries, command.id);
       break;
+    case 'stock.issue': {
+      const old = command.id ? need(state.stockIssues, command.id) : undefined;
+      const row = update(state.stockIssues, command.id, {
+        date: command.date,
+        note: command.note,
+        productId: command.productId,
+        quantityOut: command.quantityOut,
+        sequence: old?.sequence ?? state.nextSequence++,
+      });
+      productIds = [row.productId];
+      break;
+    }
+    case 'stock.issue.delete': {
+      productIds = [need(state.stockIssues, command.id).productId];
+      remove(state.stockIssues, command.id);
+      break;
+    }
     case 'event.save': {
       const old = command.id ? need(state.events, command.id) : undefined;
       const row = update(state.events, command.id, {

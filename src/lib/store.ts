@@ -27,10 +27,20 @@ export function redis(): Redis {
   }));
 }
 export function decodeRegister(raw: string): Register {
-  const state = JSON.parse(raw) as Register;
+  const state = JSON.parse(raw) as Partial<Register> & { schemaVersion?: number };
   if (state.schemaVersion !== 1)
     throw new Error('Version de données incompatible. Exécutez la migration.');
-  return state;
+  return {
+    ...state,
+    users: state.users ?? [],
+    participants: state.participants ?? [],
+    contributions: state.contributions ?? [],
+    products: state.products ?? [],
+    entries: state.entries ?? [],
+    stockIssues: state.stockIssues ?? [],
+    events: state.events ?? [],
+    audit: state.audit ?? [],
+  } as Register;
 }
 const location = () =>
   path.join(process.cwd(), process.env.BUVETTE_DEMO_DATA_DIR || '.data', 'register.json');
@@ -110,6 +120,7 @@ export function snapshot(state: Register, user: User) {
     contributions: state.contributions,
     products: state.products,
     entries: state.entries,
+    stockIssues: state.stockIssues ?? [],
     events: state.events,
     audit: state.audit,
     projection: project(state),

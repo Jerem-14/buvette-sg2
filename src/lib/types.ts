@@ -40,6 +40,13 @@ export interface StockEntry extends Dated {
   sequence: number;
   items: EntryItem[];
 }
+export interface StockIssue extends Dated {
+  date: string;
+  note: string;
+  productId: string;
+  quantityOut: number;
+  sequence: number;
+}
 export interface EventLine extends Dated {
   productId: string;
   quantityOut: number;
@@ -77,6 +84,7 @@ export interface Register {
   contributions: Contribution[];
   products: Product[];
   entries: StockEntry[];
+  stockIssues: StockIssue[];
   events: BuvetteEvent[];
   audit: Audit[];
 }
@@ -120,6 +128,7 @@ export interface Snapshot {
   contributions: Contribution[];
   products: Product[];
   entries: StockEntry[];
+  stockIssues: StockIssue[];
   events: BuvetteEvent[];
   audit: Audit[];
   projection: Projection;
