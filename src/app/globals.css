@@ -1566,6 +1566,11 @@ label textarea {
   line-height: 1.8;
   margin-top: 30px;
 }
+.space-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 @media (min-width: 1600px) {
   .main-content {
     padding-top: 45px;
@@ -1835,8 +1840,9 @@ label textarea {
     padding: 25px 18px 0;
   }
   .page-heading {
-    display: block;
-    margin-bottom: 23px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
   .page-heading .eyebrow {
     font-size: 8px;
