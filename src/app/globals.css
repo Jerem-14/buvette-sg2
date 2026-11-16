@@ -105,6 +105,9 @@ small {
 .align-right {
   text-align: right;
 }
+.align-center {
+  text-align: center;
+}
 .eyebrow {
   display: block;
   font-size: 10px;
@@ -1570,6 +1573,20 @@ label textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.table-actions {
+  min-width: 120px;
+  padding-left: 8px;
+}
+.stock-action-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+.stock-action-cell > .row-actions {
+  margin-left: auto;
 }
 @media (min-width: 1600px) {
   .main-content {

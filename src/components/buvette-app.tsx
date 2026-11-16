@@ -940,7 +940,7 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
                             <th className="align-right">Disponible</th>
                             <th className="align-right">Valeur FIFO</th>
                             <th>État</th>
-                            {admin && <th>Actions</th>}
+                            {admin && <th className="align-center">Actions</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -985,50 +985,52 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
                                 </td>
                                 <td>{stockStatus(product)}</td>
                                 {(admin || (p.stock[product.id]?.quantity ?? 0) > 0) && (
-                                  <td className='space-between'>
-                                    {(p.stock[product.id]?.quantity ?? 0) > 0 && (
-                                      <button
-                                        className="icon-button danger"
-                                        aria-label="Retirer une unité"
-                                        title="Retirer une unité du stock"
-                                        onClick={() =>
-                                          setConfirmation({
-                                            command: {
-                                              type: 'stock.issue',
-                                              date: new Date().toISOString().slice(0, 10),
-                                              note: 'Retrait manuel d’une unité',
-                                              productId: product.id,
-                                              quantityOut: toInternalUnits(1),
-                                            },
-                                            title: 'Retirer une unité ?',
-                                            message: `Retirer 1 unité de « ${product.name} » ? Cette action diminue le stock réel et restera dans l’historique de la buvette.`,
-                                            confirmLabel: 'Retirer 1 unité',
-                                          })
-                                        }
-                                      >
-                                        <Minus size={15} />
-                                      </button>
-                                    )}
-                                    {admin &&
-                                      (product.archived ? (
+                                  <td className="table-actions">
+                                    <div className="stock-action-cell">
+                                      {(p.stock[product.id]?.quantity ?? 0) > 0 && (
                                         <button
-                                          className="text-button"
+                                          className="icon-button danger"
+                                          aria-label="Retirer une unité"
+                                          title="Retirer une unité du stock"
                                           onClick={() =>
-                                            save({ type: 'product.restore', id: product.id }).catch(
-                                              (e) => setToast(e.message),
-                                            )
+                                            setConfirmation({
+                                              command: {
+                                                type: 'stock.issue',
+                                                date: new Date().toISOString().slice(0, 10),
+                                                note: 'Retrait manuel d’une unité',
+                                                productId: product.id,
+                                                quantityOut: toInternalUnits(1),
+                                              },
+                                              title: 'Retirer une unité ?',
+                                              message: `Retirer 1 unité de « ${product.name} » ? Cette action diminue le stock réel et restera dans l’historique de la buvette.`,
+                                              confirmLabel: 'Retirer 1 unité',
+                                            })
                                           }
                                         >
-                                          <RotateCcw size={15} />
-                                          Réactiver
+                                          <Minus size={15} />
                                         </button>
-                                      ) : (
-                                        editButtons(
-                                          'product',
-                                          product.id,
-                                          `Supprimer « ${product.name} » ? Un produit déjà utilisé sera archivé pour conserver son historique et son stock. Un produit jamais utilisé sera supprimé définitivement.`,
-                                        )
-                                      ))}
+                                      )}
+                                      {admin &&
+                                        (product.archived ? (
+                                          <button
+                                            className="text-button"
+                                            onClick={() =>
+                                              save({ type: 'product.restore', id: product.id }).catch(
+                                                (e) => setToast(e.message),
+                                              )
+                                            }
+                                          >
+                                            <RotateCcw size={15} />
+                                            Réactiver
+                                          </button>
+                                        ) : (
+                                          editButtons(
+                                            'product',
+                                            product.id,
+                                            `Supprimer « ${product.name} » ? Un produit déjà utilisé sera archivé pour conserver son historique et son stock. Un produit jamais utilisé sera supprimé définitivement.`,
+                                          )
+                                        ))}
+                                    </div>
                                   </td>
                                 )}
                               </tr>
