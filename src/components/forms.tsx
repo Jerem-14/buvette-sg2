@@ -3,12 +3,13 @@ import { useState, type FormEvent } from 'react';
 import { Plus, Trash2, ArrowRight, Check } from 'lucide-react';
 import type { Command } from '@/lib/domain';
 import type { Snapshot } from '@/lib/types';
-import { cents, decimal, quantity, units } from '@/lib/money';
+import { cents, decimal, fromInternalUnits, quantity, toInternalUnits, units } from '@/lib/money';
 import { today, weekdayDayMonth } from './ui';
 export interface DialogState {
   kind: string;
   id?: string;
   eventId?: string;
+  productId?: string;
 }
 export function EditForm({
   dialog,
@@ -22,10 +23,10 @@ export function EditForm({
   busy: boolean;
 }) {
   const [error, setError] = useState('');
-  const { kind, id, eventId } = dialog;
+  const { kind, id, eventId, productId } = dialog;
   const participant = data.participants.find((p) => p.id === id),
     contribution = data.contributions.find((c) => c.id === id),
-    product = data.products.find((p) => p.id === id),
+    product = data.products.find((p) => p.id === id || (kind === 'stock.issue' && p.id === productId)),
     entry = data.entries.find((e) => e.id === id),
     event = data.events.find((e) => e.id === (eventId || id));
   const line = event?.lines.find((l) => l.id === id);
@@ -51,11 +52,13 @@ export function EditForm({
   );
   const [issues, setIssues] = useState(
     line
-      ? [{ productId: line.productId, quantity: decimal(line.quantityOut, 3) }]
+      ? [{ productId: line.productId, quantity: String(fromInternalUnits(line.quantityOut)) }]
       : [{ productId: issuable[0]?.id ?? '', quantity: '1' }],
   );
   const [returns, setReturns] = useState<Record<string, string>>(
-    Object.fromEntries(event?.lines.map((l) => [l.id, decimal(l.quantityReturned, 3)]) ?? []),
+    Object.fromEntries(
+      event?.lines.map((l) => [l.id, String(fromInternalUnits(l.quantityReturned))]) ?? [],
+    ),
   );
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -85,7 +88,7 @@ export function EditForm({
             name: v('name'),
             category: v('category'),
             purchasePriceCents: cents(v('price')),
-            lowStockThreshold: units(v('threshold')),
+            lowStockThreshold: toInternalUnits(integerValue(v('threshold'), 'Le seuil d’alerte')),
           };
           break;
         case 'entry':
@@ -101,6 +104,16 @@ export function EditForm({
             })),
           };
           break;
+        case 'stock.issue':
+          command = {
+            type: 'stock.issue',
+            id,
+            date: v('date'),
+            note: v('note'),
+            productId: v('productId'),
+            quantityOut: toInternalUnits(integerValue(v('quantity'), 'La quantité retirée')),
+          };
+          break;
         case 'event':
           command = { type: 'event.save', id, name: v('name'), date: v('date'), note: v('note') };
           break;
@@ -111,14 +124,14 @@ export function EditForm({
                 id,
                 eventId: eventId!,
                 productId: issues[0].productId,
-                quantityOut: units(issues[0].quantity),
+                quantityOut: toInternalUnits(integerValue(issues[0].quantity, 'La quantité sortie')),
               }
             : {
                 type: 'event.issueMany',
                 eventId: eventId!,
                 items: issues.map((i) => ({
                   productId: i.productId,
-                  quantityOut: units(i.quantity),
+                  quantityOut: toInternalUnits(integerValue(i.quantity, 'La quantité sortie')),
                 })),
               };
           break;
@@ -128,7 +141,7 @@ export function EditForm({
             eventId: eventId!,
             returns: event!.lines.map((l) => ({
               id: l.id,
-              quantityReturned: units(returns[l.id]),
+              quantityReturned: toInternalUnits(integerValue(returns[l.id], 'Le retour au stock')),
             })),
           };
           break;
@@ -158,6 +171,11 @@ export function EditForm({
       />
     </label>
   );
+  const integerValue = (raw: string, label: string) => {
+    const value = raw.trim();
+    if (!/^\d+$/.test(value)) throw new Error(`${label} doit être un nombre entier.`);
+    return Number.parseInt(value, 10);
+  };
   return (
     <form className="edit-form" onSubmit={submit}>
       {kind === 'participant' && (
@@ -261,9 +279,10 @@ export function EditForm({
               Seuil d’alerte (unités)
               <input
                 name="threshold"
-                inputMode="decimal"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 required
-                defaultValue={product ? decimal(product.lowStockThreshold, 3) : '3'}
+                defaultValue={product ? String(fromInternalUnits(product.lowStockThreshold)) : '3'}
               />
             </label>
           </div>
@@ -385,6 +404,44 @@ export function EditForm({
           </p>
         </>
       )}
+      {kind === 'stock.issue' && (
+        <>
+          <label>
+            Produit concerné
+            <select name="productId" required defaultValue={product?.id ?? productId ?? ''}>
+              <option value="" disabled>
+                Choisir un produit
+              </option>
+              {data.products
+                .filter((p) => !p.archived || p.id === productId)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <div className="form-grid">
+            <label>
+              Quantité retirée
+              <input
+                name="quantity"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                required
+                defaultValue="1"
+                placeholder="1"
+              />
+            </label>
+            {dateField()}
+          </div>
+          {noteField()}
+          <p className="info-box">
+            Cette sortie n’est pas liée à une soirée. Elle diminue le stock réel et reste dans
+            l’historique pour garder les comptes justes.
+          </p>
+        </>
+      )}
       {kind === 'event' && (
         <>
           <label>
@@ -434,7 +491,8 @@ export function EditForm({
                   Quantité à sortir
                   <input
                     aria-label={`Quantité ${i + 1}`}
-                    inputMode="decimal"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required
                     value={issue.quantity}
                     onChange={(e) =>
@@ -482,15 +540,15 @@ export function EditForm({
           )}
           <p className="info-box">
             Le stock disponible diminue dès l’enregistrement. Vous indiquerez les retours à la
-            clôture. Les quantités acceptent jusqu’à 3 décimales.
+            clôture. Les quantités sont saisies en unités entières.
           </p>
         </>
       )}
       {kind === 'close' && (
         <>
           <p className="info-box">
-            Saisissez ce qui revient au stock. Le reste sera comptabilisé comme consommé. Une
-            demi-bouteille peut être retournée avec la quantité 0,5.
+            Saisissez ce qui revient au stock. Le reste sera comptabilisé comme consommé. Les
+            retours sont saisis en unités complètes.
           </p>
           <div className="return-list">
             {event?.lines.map((l) => {
@@ -512,7 +570,8 @@ export function EditForm({
                     Retour
                     <input
                       aria-label={`Retour ${p.name}`}
-                      inputMode="decimal"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       required
                       value={returns[l.id]}
                       onChange={(e) => setReturns({ ...returns, [l.id]: e.target.value })}

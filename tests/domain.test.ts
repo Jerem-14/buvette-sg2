@@ -1,7 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyCommand, emptyRegister, project } from '../src/lib/domain';
-import { cents, decimal, lotValue, money, quantity, ratio, units } from '../src/lib/money';
+import {
+  cents,
+  decimal,
+  fromInternalUnits,
+  lotValue,
+  money,
+  quantity,
+  ratio,
+  toInternalUnits,
+  units,
+} from '../src/lib/money';
 import type { User } from '../src/lib/types';
 const admin: User = {
   id: 'admin',
@@ -77,6 +87,8 @@ test('montants exacts, virgules, quantités fractionnées et ratio nul', () => {
   assert.equal(quantity(10000), '10');
   assert.equal(quantity(10500), '10,5');
   assert.equal(quantity(0), '0');
+  assert.equal(toInternalUnits(1), 1000);
+  assert.equal(fromInternalUnits(1000), 1);
   assert.equal(decimal(120), '1.20');
   assert.equal(money(-150), '−1,50 €');
   assert.equal(ratio(50000, 40000), '125,0 %');
@@ -239,6 +251,21 @@ test('les sorties clôturées peuvent être corrigées et annulées par admin', 
   assert.throws(() => f.issue(e, 1000), /clôturée/);
   f.run({ type: 'event.removeLine', eventId: e, id: l.id });
   assert.equal(project(f.state()).consumedCents, 0);
+});
+test('une sortie manuelle du stock diminue le stock sans passer par une soirée', () => {
+  const f = fixture();
+  f.entry(5000);
+  f.run({
+    type: 'stock.issue',
+    date: '2026-09-17',
+    note: 'Perte de stock',
+    productId: f.productId,
+    quantityOut: 1500,
+  });
+  const p = project(f.state());
+  assert.equal(p.stock[f.productId].quantity, 3500);
+  assert.equal(p.consumedCents, 180);
+  assert.equal(p.movements.some((m) => m.type === 'manualIssue' && m.productId === f.productId), true);
 });
 test('contribution modifiée/supprimée : indicateurs recalculés et audit conservé', () => {
   const f = fixture();

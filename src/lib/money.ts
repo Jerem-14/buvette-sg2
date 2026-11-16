@@ -27,6 +27,12 @@ export function decimal(value: number, digits = 2): string {
     base = 10n ** BigInt(digits);
   return `${n / base}.${(n % base).toString().padStart(digits, '0')}`;
 }
+export function toInternalUnits(value: number): number {
+  return value * 1000;
+}
+export function fromInternalUnits(value: number): number {
+  return value / 1000;
+}
 export function quantity(value: number): string {
   return (
     decimal(value, 3)

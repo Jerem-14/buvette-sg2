@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Minus,
   Package,
   Pencil,
   Plus,
@@ -30,7 +31,7 @@ import {
 } from 'lucide-react';
 import type { Command } from '@/lib/domain';
 import type { BuvetteEvent, Movement, Product, Snapshot } from '@/lib/types';
-import { lotValue, money, quantity, ratio } from '@/lib/money';
+import { lotValue, money, quantity, ratio, toInternalUnits } from '@/lib/money';
 import { Amount, Badge, dateLabel, Empty, Modal, SectionHead, Stat } from './ui';
 import { EditForm, type DialogState } from './forms';
 
@@ -68,6 +69,7 @@ const movementNames: Record<string, string> = {
   contribution: 'Contribution',
   entry: 'Entrée de stock',
   out: 'Sortie de stock',
+  manualIssue: 'Sortie manuelle de stock',
   return: 'Retour au stock',
   consumed: 'Consommation',
   audit: 'Journal des modifications',
@@ -83,6 +85,8 @@ const auditNames: Record<string, string> = {
   'contribution.delete': 'Contribution supprimée',
   'entry.save': 'Entrée enregistrée',
   'entry.delete': 'Entrée supprimée',
+  'stock.issue': 'Sortie manuelle de stock',
+  'stock.issue.delete': 'Sortie manuelle supprimée',
   'event.save': 'Soirée enregistrée',
   'event.delete': 'Soirée annulée',
   'event.issue': 'Sortie enregistrée',
@@ -352,13 +356,11 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
       ? ['contribution', 'Ajouter une contribution']
       : section === 'produits'
         ? ['product', 'Nouveau produit']
-        : section === 'stock'
-          ? ['entry', 'Entrée de stock']
-          : section === 'soirees'
-            ? ['event', 'Créer une soirée']
-            : section === 'participants'
-              ? ['participant', 'Ajouter un participant']
-              : null;
+        : section === 'soirees'
+          ? ['event', 'Créer une soirée']
+          : section === 'participants'
+            ? ['participant', 'Ajouter un participant']
+            : null;
   const allMovements: Movement[] = [
     ...p.movements,
     ...data.audit.map((a) => ({
@@ -509,7 +511,21 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
               <h1>{headings[section][0]}</h1>
               <p>{headings[section][1]}</p>
             </div>
-            {headerAction ? (
+            {section === 'stock' ? (
+              <div className="row-actions" style={{ gap: '10px' }}>
+                <button className="button primary" onClick={() => setDialog({ kind: 'entry' })}>
+                  <Plus size={17} />
+                  Entrée de stock
+                </button>
+                <button
+                  className="button secondary"
+                  onClick={() => setDialog({ kind: 'stock.issue' })}
+                >
+                  <ArrowDownToLine size={17} />
+                  Sortie de stock
+                </button>
+              </div>
+            ) : headerAction ? (
               <button
                 className="button primary"
                 onClick={() => setDialog({ kind: headerAction[0] })}
@@ -960,27 +976,46 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
                                   <Amount value={p.stock[product.id]?.valueCents ?? 0} />
                                 </td>
                                 <td>{stockStatus(product)}</td>
-                                {admin && (
-                                  <td>
-                                    {product.archived ? (
+                                {(admin || (p.stock[product.id]?.quantity ?? 0) > 0) && (
+                                  <td className='space-between'>
+                                    {(p.stock[product.id]?.quantity ?? 0) > 0 && (
                                       <button
-                                        className="text-button"
+                                        className="icon-button danger"
+                                        aria-label="Retirer une unité"
+                                        title="Retirer une unité du stock"
                                         onClick={() =>
-                                          save({ type: 'product.restore', id: product.id }).catch(
-                                            (e) => setToast(e.message),
-                                          )
+                                          save({
+                                            type: 'stock.issue',
+                                            date: new Date().toISOString().slice(0, 10),
+                                            note: 'Retrait manuel d’une unité',
+                                            productId: product.id,
+                                            quantityOut: toInternalUnits(1),
+                                          }).catch((e) => setToast(e.message))
                                         }
                                       >
-                                        <RotateCcw size={15} />
-                                        Réactiver
+                                        <Minus size={15} />
                                       </button>
-                                    ) : (
-                                      editButtons(
-                                        'product',
-                                        product.id,
-                                        `Supprimer « ${product.name} » ? Un produit déjà utilisé sera archivé pour conserver son historique et son stock. Un produit jamais utilisé sera supprimé définitivement.`,
-                                      )
                                     )}
+                                    {admin &&
+                                      (product.archived ? (
+                                        <button
+                                          className="text-button"
+                                          onClick={() =>
+                                            save({ type: 'product.restore', id: product.id }).catch(
+                                              (e) => setToast(e.message),
+                                            )
+                                          }
+                                        >
+                                          <RotateCcw size={15} />
+                                          Réactiver
+                                        </button>
+                                      ) : (
+                                        editButtons(
+                                          'product',
+                                          product.id,
+                                          `Supprimer « ${product.name} » ? Un produit déjà utilisé sera archivé pour conserver son historique et son stock. Un produit jamais utilisé sera supprimé définitivement.`,
+                                        )
+                                      ))}
                                   </td>
                                 )}
                               </tr>
@@ -1337,9 +1372,16 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
             dialog.kind === 'close' ? 'Un dernier point pour garder les comptes justes.' : undefined
           }
         >
-          {['participant', 'contribution', 'product', 'entry', 'event', 'issue', 'close'].includes(
-            dialog.kind,
-          ) && (
+          {[
+            'participant',
+            'contribution',
+            'product',
+            'entry',
+            'stock.issue',
+            'event',
+            'issue',
+            'close',
+          ].includes(dialog.kind) && (
             <EditForm
               key={`${dialog.kind}-${dialog.id}-${dialog.eventId}`}
               dialog={dialog}
@@ -1568,6 +1610,13 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
                         <Plus size={16} />
                         Entrée de stock
                       </button>
+                      <button
+                        className="button secondary"
+                        onClick={() => setDialog({ kind: 'stock.issue', productId: product.id })}
+                      >
+                        <ArrowDownToLine size={16} />
+                        Sortie de stock
+                      </button>
                       {admin && (
                         <button
                           className="button secondary"
@@ -1705,6 +1754,7 @@ function dialogTitle(dialog: DialogState, data: Snapshot) {
     contribution: 'une contribution',
     product: 'un produit',
     entry: 'une entrée de stock',
+    'stock.issue': 'une sortie de stock',
     event: 'une soirée',
     issue: 'une sortie de stock',
   };
