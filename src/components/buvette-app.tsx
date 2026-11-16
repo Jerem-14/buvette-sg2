@@ -125,9 +125,12 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
     [search, setSearch] = useState(''),
     [archived, setArchived] = useState(false),
     [tab, setTab] = useState('all');
-  const [confirmation, setConfirmation] = useState<{ command: Command; message: string } | null>(
-      null,
-    ),
+  const [confirmation, setConfirmation] = useState<{
+      command: Command;
+      title: string;
+      message: string;
+      confirmLabel: string;
+    } | null>(null),
     [error, setError] = useState('');
   const [filters, setFilters] = useState({
     from: '',
@@ -182,9 +185,14 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
       setBusy(false);
     }
   };
-  const askDelete = (command: Command, message: string) => {
+  const askDelete = (command: Command, message: string, title = 'Confirmer la suppression') => {
     setError('');
-    setConfirmation({ command, message });
+    setConfirmation({
+      command,
+      title,
+      message,
+      confirmLabel: title === 'Confirmer la suppression' ? 'Confirmer la suppression' : 'Confirmer',
+    });
   };
   const matches = (value: string) =>
     value.toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr'));
@@ -984,13 +992,18 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
                                         aria-label="Retirer une unité"
                                         title="Retirer une unité du stock"
                                         onClick={() =>
-                                          save({
-                                            type: 'stock.issue',
-                                            date: new Date().toISOString().slice(0, 10),
-                                            note: 'Retrait manuel d’une unité',
-                                            productId: product.id,
-                                            quantityOut: toInternalUnits(1),
-                                          }).catch((e) => setToast(e.message))
+                                          setConfirmation({
+                                            command: {
+                                              type: 'stock.issue',
+                                              date: new Date().toISOString().slice(0, 10),
+                                              note: 'Retrait manuel d’une unité',
+                                              productId: product.id,
+                                              quantityOut: toInternalUnits(1),
+                                            },
+                                            title: 'Retirer une unité ?',
+                                            message: `Retirer 1 unité de « ${product.name} » ? Cette action diminue le stock réel et restera dans l’historique de la buvette.`,
+                                            confirmLabel: 'Retirer 1 unité',
+                                          })
                                         }
                                       >
                                         <Minus size={15} />
@@ -1696,7 +1709,7 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
       )}
       {confirmation && (
         <Modal
-          title="Confirmer la suppression"
+          title={confirmation.title}
           onClose={() => {
             if (!busy) setConfirmation(null);
           }}
@@ -1720,7 +1733,7 @@ export function BuvetteApp({ initial, section }: { initial: Snapshot; section: s
               disabled={busy}
               onClick={() => save(confirmation.command).catch((e) => setError(e.message))}
             >
-              {busy ? 'Enregistrement…' : 'Confirmer la suppression'}
+              {busy ? 'Enregistrement…' : confirmation.confirmLabel}
               <Trash2 size={16} />
             </button>
           </div>
