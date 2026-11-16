@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { Plus, Trash2, ArrowRight, Check } from 'lucide-react';
 import type { Command } from '@/lib/domain';
+import { getAvailableIssueProducts } from '@/lib/issue-form';
 import type { Snapshot } from '@/lib/types';
 import { cents, decimal, fromInternalUnits, quantity, toInternalUnits, units } from '@/lib/money';
 import { today, weekdayDayMonth } from './ui';
@@ -47,13 +48,29 @@ export function EditForm({
       },
     ],
   );
-  const issuable = data.products.filter(
-    (p) => (data.projection.stock[p.id]?.quantity ?? 0) > 0 || p.id === line?.productId,
-  );
+  const getIssueOptions = (index: number, currentProductId?: string) =>
+    getAvailableIssueProducts({
+      products: data.products,
+      stock: data.projection.stock,
+      selectedProductIds: issues
+        .filter((_, rowIndex) => rowIndex !== index)
+        .map((row) => row.productId),
+      currentProductId,
+    });
   const [issues, setIssues] = useState(
     line
       ? [{ productId: line.productId, quantity: String(fromInternalUnits(line.quantityOut)) }]
-      : [{ productId: issuable[0]?.id ?? '', quantity: '1' }],
+      : [
+          {
+            productId:
+              getAvailableIssueProducts({
+                products: data.products,
+                stock: data.projection.stock,
+                selectedProductIds: [],
+              })[0]?.id ?? '',
+            quantity: '1',
+          },
+        ],
   );
   const [returns, setReturns] = useState<Record<string, string>>(
     Object.fromEntries(
@@ -479,7 +496,7 @@ export function EditForm({
                     <option value="" disabled>
                       Choisir un produit
                     </option>
-                    {issuable.map((p) => (
+                    {getIssueOptions(i, issue.productId).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} · {quantity(data.projection.stock[p.id]?.quantity ?? 0)}{' '}
                         disponible(s)
@@ -526,9 +543,11 @@ export function EditForm({
                   ...issues,
                   {
                     productId:
-                      issuable.find((p) => !issues.some((row) => row.productId === p.id))?.id ??
-                      issuable[0]?.id ??
-                      '',
+                      getAvailableIssueProducts({
+                        products: data.products,
+                        stock: data.projection.stock,
+                        selectedProductIds: issues.map((row) => row.productId),
+                      })[0]?.id ?? '',
                     quantity: '1',
                   },
                 ])

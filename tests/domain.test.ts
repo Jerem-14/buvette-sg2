@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyCommand, emptyRegister, project } from '../src/lib/domain';
+import { getAvailableIssueProducts } from '../src/lib/issue-form';
 import {
   cents,
   decimal,
@@ -96,6 +97,28 @@ test('montants exacts, virgules, quantités fractionnées et ratio nul', () => {
   assert.equal(lotValue(121, 500), 61);
   for (const value of ['1.001', '-1', '1e3', 'NaN', 'Infinity', '', '1,2,3', '9007199254740992'])
     assert.throws(() => cents(value));
+});
+test('les produits déjà épuisés ou déjà sélectionnés ne sont plus proposés dans un formulaire de soirée', () => {
+  const products = [
+    { id: 'p1', name: 'Saucisson', archived: false },
+    { id: 'p2', name: 'Coca', archived: false },
+    { id: 'p3', name: 'Chips', archived: false },
+  ] as const;
+  const stock = {
+    p1: { quantity: 0 },
+    p2: { quantity: 1 },
+    p3: { quantity: 2 },
+  } as const;
+  const available = getAvailableIssueProducts({
+    products,
+    stock,
+    selectedProductIds: ['p1', 'p2'],
+    currentProductId: 'p3',
+  });
+  assert.deepEqual(
+    available.map((p) => p.id),
+    ['p3'],
+  );
 });
 test('un achat déficitaire est accepté sans contribution', () => {
   const f = fixture();
