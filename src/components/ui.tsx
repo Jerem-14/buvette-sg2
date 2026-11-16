@@ -49,10 +49,6 @@ export function Modal({
       className="modal"
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
       }}
     >
       <div className="modal-head">
